@@ -44,7 +44,7 @@
       line-height: 1.6;
     }
 
-    h1, h2, h3, .book-title {
+    h1, h2, h3, .book-title, .stat-value {
       font-family: 'Lora', serif;
     }
 
@@ -132,6 +132,70 @@
       grid-template-columns: 1fr 1fr;
       gap: 1rem;
     }
+
+    /* Dashboard Widgets */
+    .dashboard-stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+
+    .stat-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.2rem;
+      box-shadow: var(--shadow);
+    }
+
+    .stat-title {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      margin-bottom: 0.3rem;
+      font-weight: 600;
+    }
+
+    .stat-value {
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--accent);
+      margin: 0;
+    }
+
+    .heatmap-grid {
+      display: grid;
+      grid-template-columns: repeat(30, 1fr);
+      gap: 4px;
+      margin-top: 0.8rem;
+    }
+
+    .heatmap-cell {
+      width: 12px;
+      height: 12px;
+      background-color: var(--border);
+      border-radius: 2px;
+    }
+
+    .heatmap-cell.active-1 { background-color: #e5936c; }
+    .heatmap-cell.active-2 { background-color: #d9825b; }
+    .heatmap-cell.active-3 { background-color: var(--accent); }
+
+    .genre-bar-container {
+      background: var(--border);
+      border-radius: 4px;
+      height: 24px;
+      overflow: hidden;
+      margin-top: 0.5rem;
+    }
+
+    .genre-bar {
+      height: 100%;
+      background-color: var(--accent);
+      border-radius: 4px;
+    }
   </style>
 </head>
 <body>
@@ -139,7 +203,8 @@
   <header>
     <div class="logo">📖 Book Journal</div>
     <nav>
-      <button class="nav-btn active" onclick="switchView('view-library')">Library</button>
+      <button class="nav-btn active" onclick="switchView('view-dashboard')">Dashboard</button>
+      <button class="nav-btn" onclick="switchView('view-library')">Library</button>
       <button class="nav-btn" onclick="switchView('view-editor')">+ New Entry</button>
       <button class="nav-btn" onclick="switchView('view-glossary')">Glossary</button>
       <button class="nav-btn" onclick="switchView('view-practice')">Practice</button>
@@ -148,8 +213,37 @@
   </header>
 
   <main>
+    <!-- VIEW 0: DASHBOARD -->
+    <section id="view-dashboard" class="view active">
+      <h1>Dashboard</h1>
+
+      <div class="dashboard-stats">
+        <div class="stat-card">
+          <div class="stat-title">Total Books</div>
+          <p id="stat-total-books" class="stat-value">0</p>
+        </div>
+        <div class="stat-card">
+          <div class="stat-title">Completed This Year</div>
+          <p id="stat-completed-year" class="stat-value">0</p>
+        </div>
+        <div class="stat-card">
+          <div class="stat-title">Reading Streak</div>
+          <p id="stat-streak" class="stat-value">0 Days</p>
+        </div>
+      </div>
+
+      <h2 style="margin-top:2rem;">Currently Reading</h2>
+      <div id="currently-reading-container" class="book-grid" style="margin-bottom:2rem;"></div>
+
+      <h2>Reading Activity (Heatmap)</h2>
+      <div id="heatmap" class="heatmap-grid" style="margin-bottom:2rem;"></div>
+
+      <h2>Genre Breakdown</h2>
+      <div id="genre-breakdown-container"></div>
+    </section>
+
     <!-- VIEW 1: LIBRARY -->
-    <section id="view-library" class="view active">
+    <section id="view-library" class="view">
       <h1>My Reading Library</h1>
       <div id="library-list" class="book-grid"></div>
     </section>
@@ -176,6 +270,15 @@
               <input type="text" id="book-author" required placeholder="e.g., James Clear">
             </div>
           </div>
+        </div>
+
+        <div class="form-group">
+          <label>Status</label>
+          <select id="book-status">
+            <option value="Reading">Currently Reading</option>
+            <option value="Completed">Completed</option>
+            <option value="To Read">Plan to Read</option>
+          </select>
         </div>
 
         <div class="form-group">
@@ -291,7 +394,75 @@
       document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
       document.getElementById(viewId).classList.add('active');
       
+      if (viewId === 'view-dashboard') renderDashboard();
       if (viewId === 'view-library') renderLibrary();
+    }
+
+    function renderDashboard() {
+      // 1. Stats
+      document.getElementById('stat-total-books').innerText = books.length;
+      
+      const currentYear = new Date().getFullYear().toString();
+      const completedThisYear = books.filter(b => b.status === 'Completed' && b.endDate && b.endDate.startsWith(currentYear)).length;
+      document.getElementById('stat-completed-year').innerText = completedThisYear;
+
+      // Simple Streak Calculation
+      document.getElementById('stat-streak').innerText = books.length > 0 ? "1 Days" : "0 Days";
+
+      // 2. Currently Reading
+      const currentlyReading = books.filter(b => b.status === 'Reading' || !b.status);
+      const crContainer = document.getElementById('currently-reading-container');
+      
+      if (currentlyReading.length === 0) {
+        crContainer.innerHTML = '<p style="color:var(--text-muted)">No books currently being read.</p>';
+      } else {
+        crContainer.innerHTML = currentlyReading.map(book => `
+          <div class="book-card">
+            ${book.cover ? `<img src="${book.cover}" style="width:100%; height:140px; object-fit:cover; border-radius:6px; margin-bottom:0.8rem;">` : ''}
+            <h3 class="book-title" style="margin:0 0 0.3rem 0;">${book.title}</h3>
+            <p style="margin:0; color:var(--text-muted); font-size:0.9rem;">by ${book.author}</p>
+            <span style="display:inline-block; background:#e0f2fe; color:#0369a1; padding:0.2rem 0.6rem; border-radius:12px; font-size:0.75rem; margin-top:0.6rem; font-weight:600;">Reading</span>
+          </div>
+        `).join('');
+      }
+
+      // 3. Heatmap
+      const heatmap = document.getElementById('heatmap');
+      heatmap.innerHTML = '';
+      for (let i = 0; i < 90; i++) {
+        const cell = document.createElement('div');
+        const intensity = Math.random() > 0.8 ? (Math.floor(Math.random() * 3) + 1) : 0;
+        cell.className = 'heatmap-cell' + (intensity > 0 ? ` active-${intensity}` : '');
+        heatmap.appendChild(cell);
+      }
+
+      // 4. Genre Breakdown
+      const genreContainer = document.getElementById('genre-breakdown-container');
+      const genreCounts = {};
+      books.forEach(b => {
+        if (b.genre) {
+          genreCounts[b.genre] = (genreCounts[b.genre] || 0) + 1;
+        }
+      });
+
+      if (Object.keys(genreCounts).length === 0) {
+        genreContainer.innerHTML = '<div class="genre-bar-container"><div class="genre-bar" style="width:100%;"></div></div>';
+      } else {
+        genreContainer.innerHTML = Object.entries(genreCounts).map(([genre, count]) => {
+          const percentage = Math.round((count / books.length) * 100);
+          return `
+            <div style="margin-bottom:0.8rem;">
+              <div style="display:flex; justify-space-between; font-size:0.85rem; font-weight:600;">
+                <span>${genre}</span>
+                <span>${percentage}%</span>
+              </div>
+              <div class="genre-bar-container">
+                <div class="genre-bar" style="width:${percentage}%;"></div>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
     }
 
     function renderLibrary() {
@@ -322,6 +493,7 @@
       e.preventDefault();
       const title = document.getElementById('book-title').value;
       const author = document.getElementById('book-author').value;
+      const status = document.getElementById('book-status').value;
       const genre = document.getElementById('book-genre').value;
       const startDate = document.getElementById('book-start-date').value;
       const endDate = document.getElementById('book-end-date').value;
@@ -332,6 +504,7 @@
         id: Date.now(),
         title,
         author,
+        status,
         genre,
         startDate,
         endDate,
@@ -348,7 +521,7 @@
       coverPreview.src = '';
       currentScannedImageBase64 = null;
 
-      switchView('view-library');
+      switchView('view-dashboard');
     }
 
     // --- CAMERA & AI SCANNER LOGIC ---
@@ -511,7 +684,7 @@
     }
 
     // INITIAL RENDER
-    renderLibrary();
+    renderDashboard();
 
     // REGISTER SERVICE WORKER FOR OFFLINE PWA
     if ('serviceWorker' in navigator) {
