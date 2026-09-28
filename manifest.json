@@ -1,0 +1,21 @@
+{
+  "short_name": "Book Journal",
+  "name": "Book Reading Journal",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/3389/3389081.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/3389/3389081.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": "./index.html",
+  "background_color": "#fbf7f0",
+  "theme_color": "#8c4a27",
+  "display": "standalone",
+  "orientation": "portrait"
+}
