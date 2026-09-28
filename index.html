@@ -240,7 +240,7 @@
     .entry-box { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px; padding: 1rem; }
 
     /* Responsive Design */
-    @media (max-width: 768px) {
+    @media (max-width: 768px) {  
       body { flex-direction: column; }
       #sidebar { width: 100%; padding: 1rem; }
       .editor-grid, .form-row { grid-template-columns: 1fr; }
@@ -1000,6 +1000,16 @@
         document.body.setAttribute('data-theme', 'dark');
       }
     }
+
+  // REGISTER SERVICE WORKER FOR OFFLINE PWA
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+          .then(reg => console.log('Service Worker registered', reg))
+          .catch(err => console.error('Service Worker registration failed', err));
+      });
+    }
+    
   </script>
 </body>
 </html>
