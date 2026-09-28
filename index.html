@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Book Reading Journal</title>
+  <link rel="manifest" href="manifest.json">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/4.3.0/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400..700;1,400..700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-main: #fbf7f0;
+      --bg-card: #ffffff;
+      --text-main: #2b2621;
+      --text-muted: #736b63;
+      --accent: #8c4a27;
+      --accent-hover: #70381c;
+      --border: #e6decb;
+      --shadow: 0 4px 12px rgba(43, 38, 33, 0.05);
+      --radius: 8px;
+    }
+
+    [data-theme="dark"] {
+      --bg-main: #1a1816;
+      --bg-card: #24211e;
+      --text-main: #ede8e1;
+      --text-muted: #a69e94;
+      --accent: #d9825b;
+      --accent-hover: #e5936c;
+      --border: #38332e;
+      --shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+
+    * { box-sizing: border-box; transition: background-color 0.2s, color 0.2s; }
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background-color: var(--bg-main);
+      color: var(--text-main);
+      margin: 0;
+      padding: 0;
+      line-height: 1.6;
+    }
+
+    h1, h2, h3, .book-title {
+      font-family: 'Lora', serif;
+    }
+
+    header {
+      background-color: var(--bg-card);
+      border-bottom: 1px solid var(--border);
+      padding: 1rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .logo {
+      font-family: 'Lora', serif;
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--accent);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    nav { display: flex; gap: 0.5rem; }
+    nav button {
+      background: none;
+      border: none;
+      padding: 0.5rem 1rem;
+      color: var(--text-muted);
+      font-weight: 600;
+      cursor: pointer;
+      border-radius: var(--radius);
+    }
+    nav button.active {
+      color: var(--accent);
+      background-color: var(--bg-main);
+    }
+
+    main { max-width: 1000px; margin: 2rem auto; padding: 0 1rem; }
+
+    .view { display: none; }
+    .view.active { display: block; }
+
+    .btn-primary {
+      background-color: var(--accent);
+      color: white;
+      border: none;
+      padding: 0.6rem 1.2rem;
+      border-radius: var(--radius);
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .btn-primary:hover { background-color: var(--accent-hover); }
+
+    .book-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 1.5rem;
+    }
+
+    .book-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.2rem;
+      box-shadow: var(--shadow);
+    }
+
+    .form-group { margin-bottom: 1rem; }
+    .form-group label { display: block; font-weight: 600; margin-bottom: 0.3rem; font-size: 0.9rem; }
+    .form-group input, .form-group select, .form-group textarea {
+      width: 100%;
+      padding: 0.6rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background-color: var(--bg-card);
+      color: var(--text-main);
+      font-family: inherit;
+    }
+
+    .date-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="logo">📖 Book Journal</div>
+    <nav>
+      <button class="nav-btn active" onclick="switchView('view-library')">Library</button>
+      <button class="nav-btn" onclick="switchView('view-editor')">+ New Entry</button>
+      <button class="nav-btn" onclick="switchView('view-glossary')">Glossary</button>
+      <button class="nav-btn" onclick="switchView('view-practice')">Practice</button>
+      <button onclick="toggleTheme()" title="Toggle Dark/Light Mode">🌓</button>
+    </nav>
+  </header>
+
+  <main>
+    <!-- VIEW 1: LIBRARY -->
+    <section id="view-library" class="view active">
+      <h1>My Reading Library</h1>
+      <div id="library-list" class="book-grid"></div>
+    </section>
+
+    <!-- VIEW 2: EDITOR -->
+    <section id="view-editor" class="view">
+      <h1>New Book Entry</h1>
+      
+      <!-- SCANNER TRIGGER BUTTON -->
+      <button type="button" onclick="openScannerModal()" style="background-color: var(--accent); color: white; border: none; padding: 0.6rem 1rem; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 0.5rem; font-weight: 600; margin-bottom: 1.5rem;">
+        📸 Scan Book Cover with Camera
+      </button>
+
+      <form id="book-form" onsubmit="saveBookEntry(event)">
+        <div style="display: flex; gap: 1rem; align-items: flex-start; margin-bottom: 1rem;">
+          <img id="book-cover-preview" src="" alt="Cover Preview" style="display:none; width: 100px; height: 140px; object-fit: cover; border-radius: 6px; border: 1px solid var(--border);">
+          <div style="flex-grow: 1;">
+            <div class="form-group">
+              <label>Book Title</label>
+              <input type="text" id="book-title" required placeholder="e.g., Atomic Habits">
+            </div>
+            <div class="form-group">
+              <label>Author</label>
+              <input type="text" id="book-author" required placeholder="e.g., James Clear">
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Genre / Subject</label>
+          <input type="text" id="book-genre" placeholder="e.g., Self-Help, Fiction, Science">
+        </div>
+
+        <div class="date-row">
+          <div class="form-group">
+            <label>Starting Date</label>
+            <input type="date" id="book-start-date">
+          </div>
+          <div class="form-group">
+            <label>Target / Finished Date</label>
+            <input type="date" id="book-end-date">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Notes & Summary (Markdown supported)</label>
+          <textarea id="book-notes" rows="6" placeholder="Write your thoughts, key takeaways, or quotes..."></textarea>
+        </div>
+
+        <button type="submit" class="btn-primary">Save to Journal</button>
+      </form>
+    </section>
+
+    <!-- VIEW 3: GLOSSARY -->
+    <section id="view-glossary" class="view">
+      <h1>Glossary</h1>
+      <div id="glossary-list" class="book-grid"></div>
+    </section>
+
+    <!-- VIEW 4: PRACTICE LIST -->
+    <section id="view-practice" class="view">
+      <h1>Practice Checklist</h1>
+      <p style="color: var(--text-muted); margin-bottom: 1.5rem;">Actionable takeaways derived from your readings.</p>
+      <div id="practice-items-container" style="display: flex; flex-direction: column; gap: 0.8rem;"></div>
+    </section>
+  </main>
+
+  <!-- CAMERA & SCANNER MODAL -->
+  <div id="scanner-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:9999; justify-content:center; align-items:center; padding:1rem;">
+    <div style="background:var(--bg-card); max-width:500px; width:100%; border-radius:12px; padding:1.5rem; text-align:center; box-shadow:0 10px 25px rgba(0,0,0,0.5);">
+      <h3 style="margin-top:0;">Scan Book Cover</h3>
+      <p style="font-size:0.9rem; color:var(--text-muted);">Point your camera at the front cover of the book.</p>
+      
+      <div style="position:relative; width:100%; height:280px; background:#000; border-radius:8px; overflow:hidden; margin-bottom:1rem;">
+        <video id="scanner-video" autoplay playsinline style="width:100%; height:100%; object-fit:cover;"></video>
+        <canvas id="scanner-canvas" style="display:none;"></canvas>
+      </div>
+
+      <div id="scan-status" style="display:none; font-size:0.9rem; font-weight:600; color:var(--accent); margin-bottom:1rem;">
+        🔍 Analyzing book cover...
+      </div>
+
+      <div style="display:flex; gap:0.5rem; justify-content:center; flex-wrap:wrap;">
+        <button type="button" onclick="captureAndProcessCover()" style="background:#28a745; color:white; border:none; padding:0.6rem 1.2rem; border-radius:6px; font-weight:600; cursor:pointer;">
+          📷 Capture & Scan
+        </button>
+        <label style="background:#007bff; color:white; padding:0.6rem 1.2rem; border-radius:6px; font-weight:600; cursor:pointer; display:inline-block;">
+          📁 Upload Photo
+          <input type="file" accept="image/*" onchange="handleCoverUpload(event)" style="display:none;">
+        </label>
+        <button type="button" onclick="closeScannerModal()" style="background:#6c757d; color:white; border:none; padding:0.6rem 1.2rem; border-radius:6px; cursor:pointer;">
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- EDITABLE REVIEW MODAL (HUMAN-IN-THE-LOOP) -->
+  <div id="review-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:10000; justify-content:center; align-items:center; padding:1rem;">
+    <div style="background:var(--bg-card); max-width:450px; width:100%; border-radius:12px; padding:1.5rem; box-shadow:0 10px 25px rgba(0,0,0,0.5);">
+      <h3 style="margin-top:0; text-align:center;">Review Detected Book Info</h3>
+      
+      <div style="text-align:center; margin-bottom:1rem;">
+        <img id="review-cover-img" src="" alt="Captured Cover" style="max-height:160px; border-radius:6px; border:1px solid var(--border); box-shadow:0 2px 8px rgba(0,0,0,0.2);">
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:0.8rem;">
+        <div>
+          <label style="font-size:0.85rem; font-weight:600;">Title:</label>
+          <input type="text" id="review-title" style="width:100%; padding:0.5rem; border-radius:4px; border:1px solid var(--border); background:var(--bg-card); color:var(--text-main);">
+        </div>
+        <div>
+          <label style="font-size:0.85rem; font-weight:600;">Author:</label>
+          <input type="text" id="review-author" style="width:100%; padding:0.5rem; border-radius:4px; border:1px solid var(--border); background:var(--bg-card); color:var(--text-main);">
+        </div>
+        <div>
+          <label style="font-size:0.85rem; font-weight:600;">Genre / Subject:</label>
+          <input type="text" id="review-genre" style="width:100%; padding:0.5rem; border-radius:4px; border:1px solid var(--border); background:var(--bg-card); color:var(--text-main);">
+        </div>
+      </div>
+
+      <div style="display:flex; gap:0.5rem; margin-top:1.2rem; justify-content:flex-end;">
+        <button type="button" onclick="closeReviewModal()" style="background:#6c757d; color:white; border:none; padding:0.5rem 1rem; border-radius:6px; cursor:pointer;">
+          Discard
+        </button>
+        <button type="button" onclick="applyScannedDataToForm()" style="background:#28a745; color:white; border:none; padding:0.5rem 1.2rem; border-radius:6px; font-weight:600; cursor:pointer;">
+          ✅ Apply to Journal Entry
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // --- LOCAL STORAGE & STATE ---
+    let books = JSON.parse(localStorage.getItem('journal_books') || '[]');
+
+    function switchView(viewId) {
+      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+      document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+      document.getElementById(viewId).classList.add('active');
+      
+      if (viewId === 'view-library') renderLibrary();
+    }
+
+    function renderLibrary() {
+      const container = document.getElementById('library-list');
+      if (books.length === 0) {
+        container.innerHTML = '<p style="color:var(--text-muted)">No books added yet. Click "+ New Entry" to get started!</p>';
+        return;
+      }
+
+      container.innerHTML = books.map(book => `
+        <div class="book-card">
+          ${book.cover ? `<img src="${book.cover}" style="width:100%; height:180px; object-fit:cover; border-radius:6px; margin-bottom:0.8rem;">` : ''}
+          <h3 class="book-title" style="margin:0 0 0.3rem 0;">${book.title}</h3>
+          <p style="margin:0; color:var(--text-muted); font-size:0.9rem;">by ${book.author}</p>
+          
+          <div style="display:flex; gap:0.4rem; flex-wrap:wrap; margin-top:0.5rem;">
+            ${book.genre ? `<span style="background:var(--bg-main); border:1px solid var(--border); padding:0.2rem 0.5rem; border-radius:4px; font-size:0.75rem;">🏷️ ${book.genre}</span>` : ''}
+            ${book.startDate ? `<span style="background:var(--bg-main); border:1px solid var(--border); padding:0.2rem 0.5rem; border-radius:4px; font-size:0.75rem;">📅 Started: ${book.startDate}</span>` : ''}
+            ${book.endDate ? `<span style="background:var(--bg-main); border:1px solid var(--border); padding:0.2rem 0.5rem; border-radius:4px; font-size:0.75rem;">🏁 Finished: ${book.endDate}</span>` : ''}
+          </div>
+
+          ${book.notes ? `<div style="margin-top:0.8rem; font-size:0.85rem; border-top:1px solid var(--border); padding-top:0.5rem;">${marked.parse(book.notes)}</div>` : ''}
+        </div>
+      `).join('');
+    }
+
+    function saveBookEntry(e) {
+      e.preventDefault();
+      const title = document.getElementById('book-title').value;
+      const author = document.getElementById('book-author').value;
+      const genre = document.getElementById('book-genre').value;
+      const startDate = document.getElementById('book-start-date').value;
+      const endDate = document.getElementById('book-end-date').value;
+      const notes = document.getElementById('book-notes').value;
+      const coverPreview = document.getElementById('book-cover-preview');
+
+      const newBook = {
+        id: Date.now(),
+        title,
+        author,
+        genre,
+        startDate,
+        endDate,
+        notes,
+        cover: coverPreview.style.display !== 'none' ? coverPreview.src : null
+      };
+
+      books.unshift(newBook);
+      localStorage.setItem('journal_books', JSON.stringify(books));
+
+      // Reset form & display library
+      document.getElementById('book-form').reset();
+      coverPreview.style.display = 'none';
+      coverPreview.src = '';
+      currentScannedImageBase64 = null;
+
+      switchView('view-library');
+    }
+
+    // --- CAMERA & AI SCANNER LOGIC ---
+    let cameraStream = null;
+    let currentScannedImageBase64 = null;
+
+    async function openScannerModal() {
+      document.getElementById('scanner-modal').style.display = 'flex';
+      document.getElementById('scan-status').style.display = 'none';
+      
+      try {
+        cameraStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 } }
+        });
+        document.getElementById('scanner-video').srcObject = cameraStream;
+      } catch (err) {
+        console.warn("Camera access denied or unavailable:", err);
+        alert("Could not access camera. You can still use the 'Upload Photo' button!");
+      }
+    }
+
+    function stopCameraStream() {
+      if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
+        cameraStream = null;
+      }
+    }
+
+    function closeScannerModal() {
+      stopCameraStream();
+      document.getElementById('scanner-modal').style.display = 'none';
+    }
+
+    function closeReviewModal() {
+      document.getElementById('review-modal').style.display = 'none';
+    }
+
+    async function captureAndProcessCover() {
+      const video = document.getElementById('scanner-video');
+      const canvas = document.getElementById('scanner-canvas');
+      
+      if (!video.videoWidth) {
+        alert("Camera feed is not ready. Try uploading a photo instead.");
+        return;
+      }
+
+      const maxWidth = 600;
+      const scale = maxWidth / video.videoWidth;
+      canvas.width = maxWidth;
+      canvas.height = video.videoHeight * scale;
+
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      currentScannedImageBase64 = canvas.toDataURL('image/jpeg', 0.7);
+      processImageOCR(currentScannedImageBase64);
+    }
+
+    function handleCoverUpload(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const img = new Image();
+        img.onload = function() {
+          const canvas = document.getElementById('scanner-canvas');
+          const maxWidth = 600;
+          const scale = maxWidth / img.width;
+          canvas.width = maxWidth;
+          canvas.height = img.height * scale;
+
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          
+          currentScannedImageBase64 = canvas.toDataURL('image/jpeg', 0.7);
+          processImageOCR(currentScannedImageBase64);
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    async function processImageOCR(imageBase64) {
+      document.getElementById('scan-status').style.display = 'block';
+      document.getElementById('scan-status').innerText = '🔍 Reading text from cover image...';
+
+      try {
+        const { data: { text } } = await Tesseract.recognize(imageBase64, 'eng');
+        const words = text.split('\n').map(w => w.trim()).filter(w => w.length > 2);
+        const searchQuery = words.slice(0, 5).join(" ");
+
+        document.getElementById('scan-status').innerText = '📚 Looking up book info...';
+
+        let foundTitle = "";
+        let foundAuthor = "";
+        let foundGenre = "";
+
+        if (searchQuery.trim().length > 0) {
+          const apiRes = await fetch(`https://openlibrary.org/search.json?q=${encodeURIComponent(searchQuery)}&limit=1`);
+          const apiData = await apiRes.json();
+
+          if (apiData.docs && apiData.docs.length > 0) {
+            const book = apiData.docs[0];
+            foundTitle = book.title || "";
+            foundAuthor = book.author_name ? book.author_name.join(", ") : "";
+            foundGenre = book.subject ? book.subject[0] : "";
+          }
+        }
+
+        if (!foundTitle && words.length > 0) foundTitle = words[0];
+        if (!foundAuthor && words.length > 1) foundAuthor = words[1];
+
+        closeScannerModal();
+
+        document.getElementById('review-cover-img').src = imageBase64;
+        document.getElementById('review-title').value = foundTitle;
+        document.getElementById('review-author').value = foundAuthor;
+        document.getElementById('review-genre').value = foundGenre;
+        document.getElementById('review-modal').style.display = 'flex';
+
+      } catch (err) {
+        console.error("Scan error:", err);
+        closeScannerModal();
+        
+        document.getElementById('review-cover-img').src = imageBase64;
+        document.getElementById('review-title').value = "";
+        document.getElementById('review-author').value = "";
+        document.getElementById('review-genre').value = "";
+        document.getElementById('review-modal').style.display = 'flex';
+      }
+    }
+
+    function applyScannedDataToForm() {
+      const title = document.getElementById('review-title').value;
+      const author = document.getElementById('review-author').value;
+      const genre = document.getElementById('review-genre').value;
+
+      if (document.getElementById('book-title')) document.getElementById('book-title').value = title;
+      if (document.getElementById('book-author')) document.getElementById('book-author').value = author;
+      if (document.getElementById('book-genre')) document.getElementById('book-genre').value = genre;
+
+      let coverPreview = document.getElementById('book-cover-preview');
+      if (coverPreview) {
+        coverPreview.src = currentScannedImageBase64;
+        coverPreview.style.display = 'block';
+      }
+
+      closeReviewModal();
+    }
+
+    // DARK MODE TOGGLE
+    function toggleTheme() {
+      const isDark = document.body.getAttribute('data-theme') === 'dark';
+      if (isDark) {
+        document.body.removeAttribute('data-theme');
+      } else {
+        document.body.setAttribute('data-theme', 'dark');
+      }
+    }
+
+    // INITIAL RENDER
+    renderLibrary();
+
+    // REGISTER SERVICE WORKER FOR OFFLINE PWA
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+          .then(reg => console.log('Service Worker registered', reg))
+          .catch(err => console.error('Service Worker registration failed', err));
+      });
+    }
+  </script>
+</body>
+</html>
